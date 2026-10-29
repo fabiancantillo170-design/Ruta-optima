@@ -1,0 +1,1107 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}img{max-width:100%}</style>
+</head>
+<body>
+<title>Ruta Óptima Caribe</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+/* Layout: carta de despacho — una franja de mando arriba, pestañas, y el tablero de la red debajo. */
+:root{
+  --bg:#EEF4F5; --surface:#FFFFFF; --sunk:#E3ECEE; --ink:#0F2733; --muted:#56707B; --line:#CFDDE1;
+  --accent:#0D7480; --accent-ink:#FFFFFF; --accent-soft:#D5ECEE;
+  --signal:#D9692B; --signal-soft:#FBE4D6;
+  --good:#23794F; --good-soft:#DCEFE4; --warn:#9C6A00; --warn-soft:#F6EBCF; --bad:#B23A33; --bad-soft:#F6DEDB;
+  --heat:13,116,128;
+  --f-display:"Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --f-body:"IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --f-mono:"IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  --r:10px;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#08171E; --surface:#0F2430; --sunk:#0B1D26; --ink:#E2EDF0; --muted:#8CA5AE; --line:#20404C;
+  --accent:#3BBFC7; --accent-ink:#06222A; --accent-soft:#123A44;
+  --signal:#F09A5C; --signal-soft:#3D2416;
+  --good:#5CC48E; --good-soft:#123426; --warn:#E3B04B; --warn-soft:#3A2E10; --bad:#F0837B; --bad-soft:#3E1C1A;
+  --heat:59,191,199; color-scheme:dark }}
+:root[data-theme="dark"]{
+  --bg:#08171E; --surface:#0F2430; --sunk:#0B1D26; --ink:#E2EDF0; --muted:#8CA5AE; --line:#20404C;
+  --accent:#3BBFC7; --accent-ink:#06222A; --accent-soft:#123A44;
+  --signal:#F09A5C; --signal-soft:#3D2416;
+  --good:#5CC48E; --good-soft:#123426; --warn:#E3B04B; --warn-soft:#3A2E10; --bad:#F0837B; --bad-soft:#3E1C1A;
+  --heat:59,191,199; color-scheme:dark }
+
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.5}
+.wrap{max-width:1180px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+h1,h2,h3{font-family:var(--f-display);text-wrap:balance;margin:0;line-height:1.15}
+h2{font-size:1.35rem;font-weight:700}
+h3{font-size:1.05rem;font-weight:700}
+p{margin:0}
+.mono,.num{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+.muted{color:var(--muted)}
+.eyebrow{font-family:var(--f-mono);font-size:.72rem;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+button,select,input{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--signal);outline-offset:2px}
+
+/* ---- franja superior ---- */
+.top{background:var(--ink);color:var(--bg);padding-block:22px 18px}
+.top .wrap{display:flex;flex-wrap:wrap;gap:18px 32px;align-items:flex-end;justify-content:space-between}
+.brand h1{font-size:clamp(1.7rem,4.6vw,2.6rem);font-weight:800;letter-spacing:-.02em}
+.brand h1 span{color:var(--accent)}
+.brand p{font-size:.9rem;opacity:.8;margin-top:4px}
+.ticket{display:grid;grid-template-columns:auto auto;gap:2px 18px;font-family:var(--f-mono);font-size:.8rem;border:1px dashed color-mix(in srgb,var(--bg) 40%,transparent);border-radius:8px;padding:10px 14px}
+.ticket b{font-size:1.5rem;font-weight:600;color:var(--accent);grid-row:span 2;align-self:center}
+.ticket small{opacity:.75}
+
+/* ---- escenarios rápidos + pestañas ---- */
+.bar{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);border-bottom:1px solid var(--line)}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--ink)}
+.chips{display:flex;gap:8px;overflow-x:auto;padding-block:12px 4px;scrollbar-width:none}
+.chip{flex:none;border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:6px 12px;font-size:.85rem;cursor:pointer;white-space:nowrap}
+.chip:hover{border-color:var(--accent)}
+.chip[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.tabs{display:flex;gap:4px;overflow-x:auto;scrollbar-width:none}
+.tab{flex:none;background:none;border:0;border-bottom:3px solid transparent;padding:10px 10px 9px;font-weight:500;color:var(--muted);cursor:pointer;white-space:nowrap}
+.tab[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--signal)}
+
+main{padding-block:22px 60px}
+section.view{display:grid;gap:20px}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:18px;min-width:0}
+.panel-head{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:baseline;justify-content:space-between;margin-bottom:12px}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,420px),1fr));gap:20px}
+.scroll{overflow-x:auto;min-width:0}
+
+/* ---- controles ---- */
+.controls{display:flex;flex-wrap:wrap;gap:12px 20px;align-items:center}
+.field{display:flex;align-items:center;gap:8px;font-size:.88rem}
+.stepper{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.stepper button{background:var(--sunk);border:0;width:30px;height:32px;cursor:pointer;font-weight:600}
+.stepper span{min-width:32px;text-align:center;align-self:center;font-family:var(--f-mono)}
+select{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:6px 8px}
+.btn{border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:7px 12px;cursor:pointer;font-size:.88rem;font-weight:500}
+.btn:hover{border-color:var(--accent)}
+.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+
+/* ---- matriz editable ---- */
+table{border-collapse:collapse}
+.matrix{min-width:100%}
+.matrix th,.matrix td{padding:4px;text-align:center}
+.matrix thead th{font-size:.75rem;color:var(--muted);font-weight:500}
+.matrix input{width:100%;min-width:58px;border:1px solid var(--line);background:var(--bg);border-radius:6px;padding:7px 6px;text-align:center;font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+.matrix input.name{font-family:var(--f-body);font-weight:600;background:transparent;border-style:dashed;min-width:64px}
+.matrix input.cap{background:var(--accent-soft);border-color:transparent}
+.matrix input.blocked{background:repeating-linear-gradient(135deg,var(--sunk) 0 6px,var(--surface) 6px 12px);color:var(--muted)}
+.matrix input.err{border-color:var(--bad);background:var(--bad-soft)}
+.matrix .corner{font-family:var(--f-mono);font-size:.7rem;color:var(--muted);text-align:left}
+.hint{font-size:.8rem;color:var(--muted);margin-top:10px}
+.hint kbd{font-family:var(--f-mono);background:var(--sunk);border-radius:4px;padding:0 5px}
+
+.balance{margin-top:14px;display:grid;gap:6px}
+.balance-track{height:10px;border-radius:99px;background:var(--sunk);position:relative;overflow:hidden}
+.balance-track i{position:absolute;inset:0 auto 0 0;border-radius:99px}
+.balance-row{display:flex;justify-content:space-between;font-size:.82rem;gap:10px;flex-wrap:wrap}
+
+/* ---- avisos ---- */
+.notes{display:grid;gap:8px}
+.note{border-radius:8px;padding:10px 12px;font-size:.88rem;border:1px solid transparent}
+.note.ok{background:var(--good-soft);color:var(--good)}
+.note.warn{background:var(--warn-soft);color:var(--warn)}
+.note.bad{background:var(--bad-soft);color:var(--bad)}
+.note.info{background:var(--accent-soft);color:var(--ink)}
+.note b{font-weight:600}
+.note ul{margin:6px 0 0;padding-left:18px}
+
+/* ---- KPIs ---- */
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,190px),1fr));gap:12px}
+.kpi{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px 16px;display:grid;gap:2px;align-content:start}
+.kpi .v{font-family:var(--f-mono);font-size:1.6rem;font-weight:600;font-variant-numeric:tabular-nums;line-height:1.2}
+.kpi.lead{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.kpi.lead .eyebrow{color:inherit;opacity:.75}
+.kpi.lead .v{color:var(--accent);font-size:2rem}
+.kpi small{font-size:.8rem;color:var(--muted)}
+.kpi.lead small{color:inherit;opacity:.8}
+.delta-good{color:var(--good)} .delta-bad{color:var(--bad)}
+
+/* ---- tablas de resultado ---- */
+.alloc{font-family:var(--f-mono);font-variant-numeric:tabular-nums;font-size:.86rem;width:100%}
+.alloc th,.alloc td{border:1px solid var(--line);padding:6px 8px;text-align:center;min-width:62px}
+.alloc thead th,.alloc th[scope="row"]{background:var(--sunk);font-family:var(--f-body);font-weight:600;font-size:.8rem}
+.alloc td{position:relative;height:50px}
+.alloc td .c{position:absolute;top:2px;right:5px;font-size:.68rem;color:var(--muted)}
+.alloc td .q{font-size:1rem;font-weight:600}
+.alloc td.zero .q{color:var(--muted);font-weight:400}
+.alloc td.dummy, .alloc th.dummy{color:var(--muted);font-style:italic}
+.alloc td.blk{background:repeating-linear-gradient(135deg,var(--sunk) 0 6px,transparent 6px 12px)}
+.alloc td .d{font-size:.78rem;color:var(--muted)}
+.alloc td .d.neg{color:var(--bad);font-weight:600}
+.alloc td.enter{outline:2px solid var(--signal);outline-offset:-2px;background:var(--signal-soft)}
+.alloc td .sg{position:absolute;left:4px;top:2px;font-size:.75rem;font-weight:700;color:var(--signal)}
+.alloc td.basic .q{text-decoration:underline;text-decoration-color:var(--accent);text-underline-offset:3px}
+.alloc .tot{background:var(--sunk);font-weight:600}
+.legend{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:.78rem;color:var(--muted);margin-top:8px}
+
+.list{width:100%;font-size:.88rem}
+.list th{font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:500;text-align:left;padding:6px 8px;border-bottom:1px solid var(--line)}
+.list td{padding:8px;border-bottom:1px solid var(--line)}
+.list td.r,.list th.r{text-align:right}
+.list tr:last-child td{border-bottom:0}
+.share{display:flex;align-items:center;gap:8px;justify-content:flex-end}
+.share i{display:block;height:6px;border-radius:3px;background:var(--accent);min-width:2px}
+
+/* barras */
+.bars{display:grid;gap:12px}
+.barrow{display:grid;grid-template-columns:minmax(70px,auto) 1fr auto;gap:10px;align-items:center;font-size:.86rem}
+.track{height:14px;background:var(--sunk);border-radius:4px;overflow:hidden}
+.track i{display:block;height:100%;background:var(--accent);border-radius:4px}
+.track i.full{background:var(--signal)}
+
+/* red */
+.net svg{width:100%;height:auto;display:block}
+.net text{font-family:var(--f-body);fill:var(--ink)}
+.net .lbl{font-family:var(--f-mono);font-size:12px;fill:var(--ink)}
+
+/* pasos */
+.steps{display:grid;gap:18px}
+.step{border-left:3px solid var(--line);padding-left:16px;display:grid;gap:10px;min-width:0}
+.step.final{border-left-color:var(--good)}
+.step .head{display:flex;flex-wrap:wrap;gap:6px 12px;align-items:baseline}
+.pill{display:inline-block;font-family:var(--f-mono);font-size:.72rem;padding:2px 8px;border-radius:99px;background:var(--sunk);color:var(--muted)}
+.pill.good{background:var(--good-soft);color:var(--good)}
+.pill.sig{background:var(--signal-soft);color:var(--signal)}
+.vlog{font-size:.84rem;display:grid;gap:4px;margin:0;padding-left:20px}
+.formula{font-family:var(--f-mono);font-size:.82rem;background:var(--sunk);border-radius:8px;padding:12px 14px;overflow-x:auto;white-space:pre;line-height:1.65}
+.recs{display:grid;gap:10px;margin:0;padding:0;list-style:none}
+.recs li{padding:10px 12px;border-radius:8px;background:var(--sunk);font-size:.9rem}
+.recs li b{font-weight:600}
+
+/* sensibilidad */
+.sens{display:grid;gap:14px}
+.sens .row{display:grid;grid-template-columns:1fr;gap:6px}
+.sens label{font-size:.86rem;display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+input[type=range]{width:100%;accent-color:var(--accent)}
+.sens-out{display:flex;flex-wrap:wrap;gap:8px 22px;align-items:baseline;padding-top:6px;border-top:1px solid var(--line)}
+.sens-out .num{font-size:1.4rem;font-weight:600}
+.saverow{display:flex;flex-wrap:wrap;gap:8px}
+.saverow input{flex:1 1 180px;border:1px solid var(--line);background:var(--bg);border-radius:8px;padding:7px 10px}
+
+/* aprende */
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr));gap:12px}
+.card{border:1px solid var(--line);border-radius:var(--r);padding:14px;display:grid;gap:6px;align-content:start;background:var(--surface)}
+.card h3{font-size:.98rem}
+.card p{font-size:.88rem;color:var(--muted)}
+ol.how{margin:0;padding-left:20px;display:grid;gap:6px;font-size:.92rem}
+.toast{position:fixed;left:50%;bottom:calc(18px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:9px 14px;border-radius:8px;font-size:.88rem;z-index:20}
+footer{font-size:.8rem;color:var(--muted);padding-block:0 30px}
+@media (max-width:560px){ .panel{padding:14px} .kpi .v{font-size:1.35rem} .kpi.lead .v{font-size:1.7rem} }
+@media (prefers-reduced-motion:no-preference){ .track i,.balance-track i{transition:width .35s ease} }
+</style>
+
+<header class="top">
+  <div class="wrap">
+    <div class="brand">
+      <p class="eyebrow" style="color:inherit;opacity:.7">Investigación de Operaciones I · Exposición 05</p>
+      <h1>Ruta Óptima <span>Caribe</span></h1>
+      <p>Cambia cualquier costo, oferta o demanda y el modelo de transporte se recalcula al instante.</p>
+    </div>
+    <div class="ticket" aria-live="polite">
+      <b id="tkZ">—</b><small>Costo mínimo Z*</small><span id="tkSub">miles de COP</span>
+    </div>
+  </div>
+</header>
+
+<div class="bar">
+  <div class="wrap">
+    <div class="chips" id="chips" role="group" aria-label="Cargar escenario"></div>
+    <nav class="tabs" role="tablist" aria-label="Secciones">
+      <button class="tab" role="tab" data-v="laboratorio">Laboratorio</button>
+      <button class="tab" role="tab" data-v="paso-a-paso">Paso a paso</button>
+      <button class="tab" role="tab" data-v="gerencial">Visión gerencial</button>
+      <button class="tab" role="tab" data-v="escenarios">Escenarios</button>
+      <button class="tab" role="tab" data-v="aprende">Aprende</button>
+    </nav>
+  </div>
+</div>
+
+<main class="wrap">
+  <!-- ================= LABORATORIO ================= -->
+  <section class="view" id="v-laboratorio">
+    <div class="panel">
+      <div class="panel-head">
+        <div><p class="eyebrow">Datos del problema</p><h2>Matriz de costos por unidad</h2></div>
+        <div class="controls">
+          <div class="field">Centros <span class="stepper"><button id="rowMinus" aria-label="Quitar centro">−</button><span id="nRows">3</span><button id="rowPlus" aria-label="Agregar centro">+</button></span></div>
+          <div class="field">Destinos <span class="stepper"><button id="colMinus" aria-label="Quitar destino">−</button><span id="nCols">4</span><button id="colPlus" aria-label="Agregar destino">+</button></span></div>
+          <label class="field" for="method">Solución inicial
+            <select id="method">
+              <option value="vogel">Vogel (VAM)</option>
+              <option value="min">Costo mínimo</option>
+              <option value="nw">Esquina noroeste</option>
+            </select></label>
+        </div>
+      </div>
+      <div class="scroll"><table class="matrix" id="matrix"></table></div>
+      <p class="hint">Costos en miles de COP por unidad. Escribe <kbd>X</kbd> en una celda para bloquear esa ruta. Se aceptan decimales con punto o coma. Los nombres de centros y destinos también se pueden editar.</p>
+      <div class="balance" id="balance"></div>
+    </div>
+
+    <div class="notes" id="notes"></div>
+
+    <div id="results" class="view" style="gap:20px">
+      <div class="kpis" id="kpis"></div>
+      <div class="grid2">
+        <div class="panel">
+          <div class="panel-head"><div><p class="eyebrow">Solución óptima</p><h3>Unidades por ruta (x<sub>ij</sub>)</h3></div></div>
+          <div class="scroll" id="allocWrap"></div>
+          <div class="legend"><span>Número pequeño: costo unitario</span><span>Gris: ruta sin envío</span></div>
+        </div>
+        <div class="panel net">
+          <div class="panel-head"><div><p class="eyebrow">Red de distribución</p><h3>Flujo de centros a destinos</h3></div></div>
+          <div id="netWrap"></div>
+          <div class="legend"><span>El grosor de cada línea es proporcional a las unidades enviadas</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= PASO A PASO ================= -->
+  <section class="view" id="v-paso-a-paso" hidden>
+    <div class="panel">
+      <p class="eyebrow">Planteamiento con tus datos</p>
+      <h2 style="margin-bottom:12px">Modelo de programación lineal</h2>
+      <div class="formula" id="formulation"></div>
+    </div>
+    <div class="panel">
+      <div class="panel-head"><div><p class="eyebrow">Comparación de métodos iniciales</p><h2>¿Qué tan buena es cada solución de arranque?</h2></div></div>
+      <div class="scroll"><table class="list" id="methodsTable"></table></div>
+    </div>
+    <div class="panel">
+      <div class="steps" id="steps"></div>
+    </div>
+  </section>
+
+  <!-- ================= GERENCIAL ================= -->
+  <section class="view" id="v-gerencial" hidden>
+    <div class="panel">
+      <div class="panel-head"><div><p class="eyebrow">Ingeniería Industrial</p><h2>Rutas recomendadas</h2></div>
+        <div class="controls"><button class="btn" id="copyCsv">Copiar tabla (CSV)</button><button class="btn" id="copyJson">Copiar datos (JSON)</button></div></div>
+      <div class="scroll"><table class="list" id="routesTable"></table></div>
+    </div>
+    <div class="grid2">
+      <div class="panel"><p class="eyebrow">Capacidad</p><h3 style="margin-bottom:14px">Utilización de cada centro</h3><div class="bars" id="utilBars"></div></div>
+      <div class="panel"><p class="eyebrow">Costo de oportunidad</p><h3 style="margin-bottom:6px">Rutas no usadas: cuánto costaría usarlas</h3>
+        <p class="muted" style="font-size:.85rem;margin-bottom:10px">Cada unidad que se desvíe por esa ruta sube el costo total en este valor (costo reducido de MODI).</p>
+        <div class="scroll"><table class="list" id="oppTable"></table></div></div>
+    </div>
+    <div class="panel"><p class="eyebrow">Decisiones</p><h2 style="margin-bottom:12px">Recomendaciones sustentadas en datos</h2><ul class="recs" id="recs"></ul></div>
+  </section>
+
+  <!-- ================= ESCENARIOS ================= -->
+  <section class="view" id="v-escenarios" hidden>
+    <div class="panel">
+      <div class="panel-head"><div><p class="eyebrow">Análisis de escenarios</p><h2>Comparación contra el caso base</h2></div></div>
+      <div class="scroll"><table class="list" id="scnTable"></table></div>
+      <div class="bars" id="scnBars" style="margin-top:16px"></div>
+      <div class="saverow" style="margin-top:16px">
+        <input id="scnName" aria-label="Nombre del escenario" placeholder="Nombre para guardar los datos actuales">
+        <button class="btn primary" id="saveScn">Guardar escenario actual</button>
+      </div>
+      <p class="hint">Los escenarios guardados quedan en este navegador. Toca una fila para cargar sus datos en el laboratorio.</p>
+    </div>
+    <div class="grid2">
+      <div class="panel sens">
+        <div><p class="eyebrow">Sensibilidad rápida</p><h3>¿Y si…?</h3></div>
+        <div class="row"><label for="sOrig">Tarifas del centro <select id="sOrig"></select> cambian <b class="num" id="sCostV">0 %</b></label>
+          <input type="range" id="sCost" min="-50" max="100" step="5" value="0"></div>
+        <div class="row"><label for="sDest">Demanda de <select id="sDest"></select> cambia <b class="num" id="sDemV">0 %</b></label>
+          <input type="range" id="sDem" min="-50" max="100" step="5" value="0"></div>
+        <div class="sens-out" id="sensOut"></div>
+        <div class="saverow"><button class="btn" id="sensApply">Llevar al laboratorio</button><button class="btn" id="sensReset">Reiniciar</button></div>
+      </div>
+      <div class="panel"><p class="eyebrow">Diferencias de rutas</p>
+        <div class="controls" style="margin:6px 0 12px"><select id="cmpA" aria-label="Escenario 1"></select><span class="muted">contra</span><select id="cmpB" aria-label="Escenario 2"></select></div>
+        <div class="scroll"><table class="list" id="cmpTable"></table></div></div>
+    </div>
+  </section>
+
+  <!-- ================= APRENDE ================= -->
+  <section class="view" id="v-aprende" hidden>
+    <div class="panel">
+      <p class="eyebrow">En palabras sencillas</p>
+      <h2 style="margin-bottom:10px">Tres bodegas, cuatro ciudades y un camión que cobra por distancia</h2>
+      <p style="max-width:68ch">Una distribuidora tiene centros de despacho con capacidad limitada y destinos que piden una cantidad exacta. Cada unidad cuesta distinto según la ruta. El modelo de transporte decide cuántas unidades mandar por cada ruta para cumplir todos los pedidos al menor costo total, sin pasarse de la capacidad de ningún centro.</p>
+    </div>
+    <div class="cards">
+      <div class="card"><h3>Variable x<sub>ij</sub></h3><p>Unidades enviadas del centro i al destino j. Es lo que el modelo decide.</p></div>
+      <div class="card"><h3>Costo c<sub>ij</sub></h3><p>Lo que cuesta mover una unidad por esa ruta, en miles de pesos.</p></div>
+      <div class="card"><h3>Función objetivo Z</h3><p>Suma de costo × cantidad en todas las rutas. Se minimiza.</p></div>
+      <div class="card"><h3>Balanceo</h3><p>Si la oferta total no es igual a la demanda total, se agrega un centro o destino ficticio con costo 0 que absorbe la diferencia.</p></div>
+      <div class="card"><h3>Vogel, costo mínimo y esquina NO</h3><p>Formas de armar una primera solución factible. Vogel suele quedar más cerca del óptimo.</p></div>
+      <div class="card"><h3>MODI (u – v)</h3><p>Calcula potenciales u<sub>i</sub> y v<sub>j</sub>. Si alguna ruta libre tiene c<sub>ij</sub> − u<sub>i</sub> − v<sub>j</sub> &lt; 0, conviene usarla: se arma un ciclo y se reasigna. Cuando ninguna es negativa, la solución es óptima.</p></div>
+      <div class="card"><h3>Degeneración</h3><p>Una solución básica necesita m + n − 1 celdas. Si salen menos, se agrega una celda con 0 para poder seguir con MODI.</p></div>
+      <div class="card"><h3>Ruta bloqueada</h3><p>Una ruta que no se puede usar (vía cerrada, sin contrato). Aquí se marca con X y el modelo la evita.</p></div>
+    </div>
+    <div class="panel">
+      <p class="eyebrow">Ingeniería Informática</p>
+      <div class="panel-head"><h2>El mismo modelo en Python (PuLP), con tus datos</h2><button class="btn" id="copyPy">Copiar código</button></div>
+      <div class="formula" id="pyCode"></div>
+      <p class="hint">Requiere <kbd>pip install "pulp==2.9.0"</kbd>. Debe dar el mismo costo total que esta página y que Excel Solver.</p>
+    </div>
+    <div class="panel">
+      <p class="eyebrow">Para la exposición</p>
+      <h2 style="margin-bottom:10px">Cómo usar el laboratorio en 4 pasos</h2>
+      <ol class="how">
+        <li>Carga un escenario arriba o edita la matriz.</li>
+        <li>Revisa la barra de balanceo: si no cuadra, el modelo agrega el ficticio solo.</li>
+        <li>Lee el costo mínimo y la red de rutas; en <b>Paso a paso</b> está todo el desarrollo con MODI.</li>
+        <li>En <b>Escenarios</b> guarda variantes y compáralas contra el caso base.</li>
+      </ol>
+    </div>
+  </section>
+</main>
+<footer class="wrap">Grupo 5 · Erick Romero · Yaine Gorcerant · Jesús Bolaño · Eider Torres · Fabián Cantillo — Corporación Universitaria Reformada. Datos académicos y ficticios del caso integrador.</footer>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+/* Motor del modelo de transporte: balanceo, métodos iniciales (Esquina Noroeste,
+   Costo Mínimo, Vogel) y optimización MODI (u-v) con manejo de degeneración.
+   costs[i][j] = número o null (ruta prohibida). */
+const TransportEngine = (() => {
+  const EPS = 1e-9;
+  const BIG = 1e7;
+  const r9 = (x) => Math.round(x * 1e9) / 1e9;
+
+  function balance(costs, supply, demand, rowNames, colNames) {
+    const S = supply.reduce((a, b) => a + b, 0);
+    const D = demand.reduce((a, b) => a + b, 0);
+    let C = costs.map((r) => r.slice());
+    let s = supply.slice(), d = demand.slice();
+    let rows = rowNames.slice(), cols = colNames.slice();
+    let dummy = null;
+    if (S - D > EPS) {
+      C.forEach((r) => r.push(0)); d.push(r9(S - D)); cols.push("Ficticio");
+      dummy = { type: "col", index: cols.length - 1, qty: r9(S - D) };
+    } else if (D - S > EPS) {
+      C.push(new Array(cols.length).fill(0)); s.push(r9(D - S)); rows.push("Ficticio");
+      dummy = { type: "row", index: rows.length - 1, qty: r9(D - S) };
+    }
+    const blocked = C.map((r) => r.map((c) => c === null));
+    const W = C.map((r) => r.map((c) => (c === null ? BIG : c)));
+    return { C: W, blocked, s, d, rows, cols, dummy, S, D };
+  }
+
+  const zeros = (m, n) => Array.from({ length: m }, () => new Array(n).fill(0));
+  const cost = (x, C) => x.reduce((a, r, i) => a + r.reduce((b, q, j) => b + q * C[i][j], 0), 0);
+
+  function northwest(C, s0, d0) {
+    const m = s0.length, n = d0.length, s = s0.slice(), d = d0.slice();
+    const x = zeros(m, n), basis = [], log = [];
+    let i = 0, j = 0;
+    while (i < m && j < n) {
+      const q = r9(Math.min(s[i], d[j]));
+      x[i][j] = q; basis.push([i, j]);
+      s[i] = r9(s[i] - q); d[j] = r9(d[j] - q);
+      log.push({ cell: [i, j], q, note: "" });
+      if (s[i] <= EPS && d[j] <= EPS) { if (i === m - 1) j++; else i++; }
+      else if (s[i] <= EPS) i++;
+      else j++;
+    }
+    return { x, basis, log };
+  }
+
+  function greedy(C, s0, d0, pick) {
+    const m = s0.length, n = d0.length, s = s0.slice(), d = d0.slice();
+    const x = zeros(m, n), basis = [], log = [];
+    const rowOn = new Array(m).fill(true), colOn = new Array(n).fill(true);
+    let nr = m, nc = n;
+    while (nr > 0 && nc > 0) {
+      const { i, j, info } = pick(C, s, d, rowOn, colOn);
+      const q = r9(Math.min(s[i], d[j]));
+      x[i][j] = q; basis.push([i, j]);
+      s[i] = r9(s[i] - q); d[j] = r9(d[j] - q);
+      log.push({ cell: [i, j], q, ...info });
+      if (nr === 1 && nc === 1) { rowOn[i] = false; colOn[j] = false; nr--; nc--; }
+      else if (s[i] <= EPS && d[j] <= EPS) {
+        if (nr > 1) { rowOn[i] = false; nr--; } else { colOn[j] = false; nc--; }
+      } else if (s[i] <= EPS) { rowOn[i] = false; nr--; }
+      else { colOn[j] = false; nc--; }
+    }
+    return { x, basis, log };
+  }
+
+  function pickMinCost(C, s, d, rowOn, colOn) {
+    let best = null;
+    for (let i = 0; i < s.length; i++) if (rowOn[i])
+      for (let j = 0; j < d.length; j++) if (colOn[j]) {
+        const q = Math.min(s[i], d[j]);
+        if (!best || C[i][j] < best.c - EPS || (Math.abs(C[i][j] - best.c) <= EPS && q > best.q + EPS))
+          best = { i, j, c: C[i][j], q };
+      }
+    return { i: best.i, j: best.j, info: {} };
+  }
+
+  function penalty(vals) {
+    const v = vals.slice().sort((a, b) => a - b);
+    return v.length >= 2 ? v[1] - v[0] : v.length === 1 ? v[0] : 0;
+  }
+
+  function pickVogel(C, s, d, rowOn, colOn) {
+    const m = s.length, n = d.length;
+    const rp = new Array(m).fill(null), cp = new Array(n).fill(null);
+    for (let i = 0; i < m; i++) if (rowOn[i]) rp[i] = penalty(C[i].filter((_, j) => colOn[j]));
+    for (let j = 0; j < n; j++) if (colOn[j]) cp[j] = penalty(C.filter((_, i) => rowOn[i]).map((r) => r[j]));
+    let best = null;
+    const consider = (kind, k, p) => {
+      // dentro de la línea, la celda de menor costo
+      let cell = null;
+      if (kind === "row") { for (let j = 0; j < n; j++) if (colOn[j] && (!cell || C[k][j] < C[cell[0]][cell[1]] - EPS)) cell = [k, j]; }
+      else { for (let i = 0; i < m; i++) if (rowOn[i] && (!cell || C[i][k] < C[cell[0]][cell[1]] - EPS)) cell = [i, k]; }
+      const c = C[cell[0]][cell[1]], q = Math.min(s[cell[0]], d[cell[1]]);
+      if (!best || p > best.p + EPS ||
+          (Math.abs(p - best.p) <= EPS && (c < best.c - EPS || (Math.abs(c - best.c) <= EPS && q > best.q + EPS))))
+        best = { kind, k, p, cell, c, q };
+    };
+    rp.forEach((p, i) => p !== null && consider("row", i, p));
+    cp.forEach((p, j) => p !== null && consider("col", j, p));
+    return { i: best.cell[0], j: best.cell[1], info: { rowPen: rp, colPen: cp, line: [best.kind, best.k], pen: best.p } };
+  }
+
+  // Garantiza una base árbol de m+n-1 celdas (agrega ceros si hay degeneración)
+  function completeBasis(C, basis, m, n) {
+    const parent = Array.from({ length: m + n }, (_, k) => k);
+    const find = (a) => (parent[a] === a ? a : (parent[a] = find(parent[a])));
+    basis.forEach(([i, j]) => { parent[find(i)] = find(m + j); });
+    const inB = new Set(basis.map(([i, j]) => i * n + j));
+    const cand = [];
+    for (let i = 0; i < m; i++) for (let j = 0; j < n; j++) if (!inB.has(i * n + j)) cand.push([C[i][j], i, j]);
+    cand.sort((a, b) => a[0] - b[0]);
+    for (const [, i, j] of cand) {
+      if (basis.length >= m + n - 1) break;
+      if (find(i) !== find(m + j)) { parent[find(i)] = find(m + j); basis.push([i, j]); }
+    }
+    return basis;
+  }
+
+  function potentials(C, basis, m, n) {
+    const u = new Array(m).fill(null), v = new Array(n).fill(null);
+    u[0] = 0;
+    let changed = true;
+    while (changed) {
+      changed = false;
+      for (const [i, j] of basis) {
+        if (u[i] !== null && v[j] === null) { v[j] = r9(C[i][j] - u[i]); changed = true; }
+        else if (v[j] !== null && u[i] === null) { u[i] = r9(C[i][j] - v[j]); changed = true; }
+      }
+    }
+    return { u, v };
+  }
+
+  // Camino en el árbol de la base entre fila i y columna j -> ciclo
+  function findCycle(basis, m, n, ei, ej) {
+    const adj = Array.from({ length: m + n }, () => []);
+    basis.forEach(([i, j]) => { adj[i].push([m + j, [i, j]]); adj[m + j].push([i, [i, j]]); });
+    const prev = new Array(m + n).fill(null), seen = new Array(m + n).fill(false);
+    const queue = [ei]; seen[ei] = true;
+    while (queue.length) {
+      const a = queue.shift();
+      if (a === m + ej) break;
+      for (const [b, cell] of adj[a]) if (!seen[b]) { seen[b] = true; prev[b] = [a, cell]; queue.push(b); }
+    }
+    const path = [];
+    let node = m + ej;
+    while (node !== ei) { const [a, cell] = prev[node]; path.push(cell); node = a; }
+    // path: desde la columna ej hacia la fila ei
+    const cycle = [{ cell: [ei, ej], sign: "+" }];
+    path.forEach((cell, t) => cycle.push({ cell, sign: t % 2 === 0 ? "-" : "+" }));
+    return cycle;
+  }
+
+  function modi(C, x0, basis0, m, n, maxIt = 200) {
+    const x = x0.map((r) => r.slice());
+    let basis = basis0.map((b) => b.slice());
+    const iterations = [];
+    for (let it = 0; it < maxIt; it++) {
+      const { u, v } = potentials(C, basis, m, n);
+      const inB = new Set(basis.map(([i, j]) => i * n + j));
+      const delta = zeros(m, n);
+      let ent = null;
+      for (let i = 0; i < m; i++) for (let j = 0; j < n; j++) {
+        if (inB.has(i * n + j)) { delta[i][j] = null; continue; }
+        delta[i][j] = r9(C[i][j] - u[i] - v[j]);
+        if (delta[i][j] < -1e-7 && (!ent || delta[i][j] < ent.d - EPS)) ent = { i, j, d: delta[i][j] };
+      }
+      const snap = { x: x.map((r) => r.slice()), basis: basis.map((b) => b.slice()), u, v, delta, z: r9(cost(x, C)) };
+      if (!ent) { iterations.push({ ...snap, optimal: true }); return { x, basis, iterations, delta, u, v }; }
+      const cycle = findCycle(basis, m, n, ent.i, ent.j);
+      const minus = cycle.filter((c) => c.sign === "-");
+      const theta = Math.min(...minus.map((c) => x[c.cell[0]][c.cell[1]]));
+      const leaving = minus
+        .filter((c) => Math.abs(x[c.cell[0]][c.cell[1]] - theta) <= EPS)
+        .sort((a, b) => C[b.cell[0]][b.cell[1]] - C[a.cell[0]][a.cell[1]])[0].cell;
+      cycle.forEach(({ cell: [i, j], sign }) => { x[i][j] = r9(x[i][j] + (sign === "+" ? theta : -theta)); });
+      basis = basis.filter(([i, j]) => !(i === leaving[0] && j === leaving[1]));
+      basis.push([ent.i, ent.j]);
+      iterations.push({ ...snap, optimal: false, entering: [ent.i, ent.j], enteringDelta: ent.d, cycle, theta, leaving });
+    }
+    throw new Error("MODI no convergió");
+  }
+
+  function solve(input, method = "vogel") {
+    const B = balance(input.costs, input.supply, input.demand, input.rowNames, input.colNames);
+    const m = B.s.length, n = B.d.length;
+    const runInit = (meth) => {
+      const r = meth === "nw" ? northwest(B.C, B.s, B.d) : greedy(B.C, B.s, B.d, meth === "min" ? pickMinCost : pickVogel);
+      r.basis = completeBasis(B.C, r.basis, m, n);
+      r.z = r9(cost(r.x, B.C));
+      r.usesBlocked = r.x.some((row, i) => row.some((q, j) => q > EPS && B.blocked[i][j]));
+      return r;
+    };
+    const inits = { nw: runInit("nw"), min: runInit("min"), vogel: runInit("vogel") };
+    const start = inits[method];
+    const opt = modi(B.C, start.x, start.basis, m, n);
+    const x = opt.x;
+    const infeasible = x.some((row, i) => row.some((q, j) => q > EPS && B.blocked[i][j]));
+    const z = r9(cost(x, B.C));
+    const alternative = opt.delta.some((row, i) => row.some((dl, j) => dl !== null && Math.abs(dl) <= 1e-7 && !B.blocked[i][j]));
+    return { B, m, n, inits, start: method, x, z, infeasible, alternative, iterations: opt.iterations, delta: opt.delta, u: opt.u, v: opt.v };
+  }
+
+  return { solve, balance, EPS, BIG };
+})();
+if (typeof module !== "undefined") module.exports = TransportEngine;
+
+</script>
+<script>
+(() => {
+const E = TransportEngine;
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const fmt = (x, d = 2) => (Math.abs(x) < 1e-9 ? 0 : x).toLocaleString("es-CO", { maximumFractionDigits: d });
+const money = (x) => "$" + fmt(x) + " mil";
+const pct = (x, d = 1) => fmt(x, d) + " %";
+const KEY = "rutaOptimaCaribe.v1";
+const store = {
+  get() { try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch (e) { return {}; } },
+  set(v) { try { localStorage.setItem(KEY, JSON.stringify(v)); } catch (e) {} },
+};
+
+/* ---------- escenarios predefinidos ---------- */
+const BASE = { rows: ["A", "B", "C"], cols: ["D1", "D2", "D3", "D4"],
+  costs: [[8, 6, 10, 9], [9, 7, 4, 2], [3, 4, 2, 5]], supply: [40, 35, 25], demand: [30, 25, 20, 25] };
+const clone = (o) => JSON.parse(JSON.stringify(o));
+const scnA = clone(BASE); scnA.supply[1] = 45; scnA.demand[3] = 35;
+const scnB = clone(BASE); scnB.costs[0] = scnB.costs[0].map((c) => Math.round(c * 1.2 * 100) / 100);
+const PRESETS = [
+  { id: "base", name: "Caso base", desc: "Datos del caso integrador", data: BASE },
+  { id: "a", name: "Escenario A", desc: "+10 demanda D4 y +10 capacidad B", data: scnA },
+  { id: "b", name: "Escenario B", desc: "+20 % en tarifas del centro A", data: scnB },
+];
+const toRaw = (d) => ({ rows: d.rows.slice(), cols: d.cols.slice(),
+  costs: d.costs.map((r) => r.map((c) => (c === null ? "X" : String(c)))),
+  supply: d.supply.map(String), demand: d.demand.map(String) });
+
+let saved = store.get().saved || [];
+let state = store.get().current || toRaw(BASE);
+let method = store.get().method || "vogel";
+let active = store.get().active || "base";
+let lastRes = null, lastInput = null;
+
+/* ---------- lectura y validación ---------- */
+function parseNum(raw) {
+  const t = String(raw).trim().replace(",", ".");
+  if (t === "" || !/^-?\d*\.?\d+$/.test(t)) return NaN;
+  return parseFloat(t);
+}
+function parse(st) {
+  const errs = [], bad = new Set();
+  const costs = st.costs.map((r, i) => r.map((raw, j) => {
+    const t = String(raw).trim();
+    if (/^x$/i.test(t)) return null;
+    const v = parseNum(t);
+    if (t === "") { errs.push(`Falta el costo de ${st.rows[i]} → ${st.cols[j]}.`); bad.add(`c-${i}-${j}`); return 0; }
+    if (isNaN(v)) { errs.push(`El costo de ${st.rows[i]} → ${st.cols[j]} ("${t}") no es un número. Usa un número o X.`); bad.add(`c-${i}-${j}`); return 0; }
+    if (v < 0) { errs.push(`El costo de ${st.rows[i]} → ${st.cols[j]} no puede ser negativo.`); bad.add(`c-${i}-${j}`); return 0; }
+    return v;
+  }));
+  const qty = (arr, kind, names) => arr.map((raw, k) => {
+    const v = parseNum(raw);
+    const label = kind === "s" ? `la oferta de ${names[k]}` : `la demanda de ${names[k]}`;
+    if (String(raw).trim() === "") { errs.push(`Falta ${label}.`); bad.add(`${kind}-${k}`); return 0; }
+    if (isNaN(v)) { errs.push(`${label[0].toUpperCase() + label.slice(1)} no es un número.`); bad.add(`${kind}-${k}`); return 0; }
+    if (v < 0) { errs.push(`${label[0].toUpperCase() + label.slice(1)} no puede ser negativa.`); bad.add(`${kind}-${k}`); return 0; }
+    return v;
+  });
+  const supply = qty(st.supply, "s", st.rows), demand = qty(st.demand, "d", st.cols);
+  const nameCheck = (arr, what) => {
+    const seen = new Set();
+    arr.forEach((n, k) => { const t = n.trim();
+      if (!t) { errs.push(`Un ${what} no tiene nombre.`); bad.add(`${what === "centro" ? "rn" : "cn"}-${k}`); }
+      else if (seen.has(t.toLowerCase())) { errs.push(`El nombre "${t}" está repetido.`); bad.add(`${what === "centro" ? "rn" : "cn"}-${k}`); }
+      seen.add(t.toLowerCase()); });
+  };
+  nameCheck(st.rows, "centro"); nameCheck(st.cols, "destino");
+  if (!errs.length && supply.reduce((a, b) => a + b, 0) === 0 && demand.reduce((a, b) => a + b, 0) === 0)
+    errs.push("La oferta y la demanda están en cero: no hay nada que transportar.");
+  return { errs, bad, input: { costs, supply, demand, rowNames: st.rows.map((s) => s.trim()), colNames: st.cols.map((s) => s.trim()) } };
+}
+
+/* ---------- matriz editable ---------- */
+function buildMatrix() {
+  const m = state.rows.length, n = state.cols.length;
+  $("#nRows").textContent = m; $("#nCols").textContent = n;
+  let h = `<thead><tr><th class="corner">centro \\ destino</th>`;
+  state.cols.forEach((c, j) => h += `<th><input class="name" id="cn-${j}" value="${esc(c)}" aria-label="Nombre del destino ${j + 1}"></th>`);
+  h += `<th>Oferta</th></tr></thead><tbody>`;
+  state.rows.forEach((r, i) => {
+    h += `<tr><th><input class="name" id="rn-${i}" value="${esc(r)}" aria-label="Nombre del centro ${i + 1}"></th>`;
+    state.cols.forEach((c, j) => h += `<td><input id="c-${i}-${j}" inputmode="decimal" value="${esc(state.costs[i][j])}" aria-label="Costo ${esc(r)} a ${esc(c)}"></td>`);
+    h += `<td><input class="cap" id="s-${i}" inputmode="decimal" value="${esc(state.supply[i])}" aria-label="Oferta de ${esc(r)}"></td></tr>`;
+  });
+  h += `<tr><th style="font-size:.78rem;color:var(--muted);font-weight:500">Demanda</th>`;
+  state.cols.forEach((c, j) => h += `<td><input class="cap" id="d-${j}" inputmode="decimal" value="${esc(state.demand[j])}" aria-label="Demanda de ${esc(c)}"></td>`);
+  h += `<td></td></tr></tbody>`;
+  $("#matrix").innerHTML = h;
+}
+$("#matrix").addEventListener("input", (e) => {
+  const id = e.target.id; if (!id) return;
+  const p = id.split("-"); const v = e.target.value;
+  if (p[0] === "c") state.costs[+p[1]][+p[2]] = v;
+  else if (p[0] === "s") state.supply[+p[1]] = v;
+  else if (p[0] === "d") state.demand[+p[1]] = v;
+  else if (p[0] === "rn") state.rows[+p[1]] = v;
+  else if (p[0] === "cn") state.cols[+p[1]] = v;
+  active = "custom";
+  schedule();
+});
+function resize(dr, dc) {
+  const m = state.rows.length + dr, n = state.cols.length + dc;
+  if (m < 1 || n < 1 || m > 6 || n > 8) { toast(m > 6 || n > 8 ? "Máximo 6 centros y 8 destinos." : "Debe haber al menos un centro y un destino."); return; }
+  if (dr > 0) { const used = new Set(state.rows); let k = 0, nm; do { nm = String.fromCharCode(65 + k++); } while (used.has(nm));
+    state.rows.push(nm); state.costs.push(new Array(state.cols.length).fill("0")); state.supply.push("0"); }
+  if (dr < 0) { state.rows.pop(); state.costs.pop(); state.supply.pop(); }
+  if (dc > 0) { const used = new Set(state.cols); let k = 1, nm; do { nm = "D" + k++; } while (used.has(nm));
+    state.cols.push(nm); state.costs.forEach((r) => r.push("0")); state.demand.push("0"); }
+  if (dc < 0) { state.cols.pop(); state.costs.forEach((r) => r.pop()); state.demand.pop(); }
+  active = "custom"; buildMatrix(); recompute();
+}
+$("#rowPlus").onclick = () => resize(1, 0); $("#rowMinus").onclick = () => resize(-1, 0);
+$("#colPlus").onclick = () => resize(0, 1); $("#colMinus").onclick = () => resize(0, -1);
+$("#method").value = method;
+$("#method").onchange = (e) => { method = e.target.value; recompute(); };
+
+/* ---------- chips ---------- */
+function renderChips() {
+  const all = [...PRESETS.map((p) => ({ id: p.id, name: p.name })), ...saved.map((s, k) => ({ id: "s" + k, name: "★ " + s.name })), { id: "blank", name: "Tabla en blanco" }];
+  $("#chips").innerHTML = all.map((c) => `<button class="chip" data-id="${c.id}" aria-pressed="${c.id === active}">${esc(c.name)}</button>`).join("");
+}
+$("#chips").addEventListener("click", (e) => { const b = e.target.closest(".chip"); if (b) loadScenario(b.dataset.id); });
+function loadScenario(id) {
+  if (id === "blank") {
+    const m = state.rows.length, n = state.cols.length;
+    state = { rows: state.rows.slice(), cols: state.cols.slice(), costs: Array.from({ length: m }, () => new Array(n).fill("")),
+      supply: new Array(m).fill(""), demand: new Array(n).fill("") };
+  } else if (id[0] === "s") state = clone(saved[+id.slice(1)].raw);
+  else state = toRaw(PRESETS.find((p) => p.id === id).data);
+  active = id; buildMatrix(); recompute();
+}
+
+/* ---------- cálculo ---------- */
+let timer = null;
+function schedule() { clearTimeout(timer); timer = setTimeout(recompute, 140); }
+function solveData(input) { try { return E.solve(input, method); } catch (e) { return null; } }
+
+function recompute() {
+  const { errs, bad, input } = parse(state);
+  document.querySelectorAll("#matrix input").forEach((el) => {
+    el.classList.toggle("err", bad.has(el.id));
+    if (el.id.startsWith("c-")) el.classList.toggle("blocked", /^\s*x\s*$/i.test(el.value));
+  });
+  renderChips();
+  store.set({ saved, current: state, method, active });
+  renderBalance(input, errs.length > 0);
+  if (errs.length) {
+    lastRes = null;
+    $("#notes").innerHTML = `<div class="note bad"><b>Revisa estos datos para poder calcular:</b><ul>${errs.slice(0, 8).map((e) => `<li>${esc(e)}</li>`).join("")}</ul></div>`;
+    $("#results").hidden = true; $("#tkZ").textContent = "—"; $("#tkSub").textContent = "datos incompletos";
+    return;
+  }
+  const res = solveData(input);
+  lastRes = res; lastInput = input;
+  if (!res) { $("#notes").innerHTML = `<div class="note bad">No se pudo resolver el modelo con estos datos.</div>`; $("#results").hidden = true; return; }
+  $("#results").hidden = false;
+  renderNotes(res); renderKpis(res); renderAlloc(res); renderNet(res);
+  renderSteps(res); renderGerencial(res); renderScenarios(); renderSens(); renderPy(input);
+}
+
+/* ---------- balance ---------- */
+function renderBalance(inp, hasErr) {
+  const S = inp.supply.reduce((a, b) => a + b, 0), D = inp.demand.reduce((a, b) => a + b, 0);
+  const mx = Math.max(S, D, 1);
+  const ok = Math.abs(S - D) < 1e-9;
+  const col = ok ? "var(--good)" : "var(--warn)";
+  $("#balance").innerHTML = `
+    <div class="balance-row"><span>Oferta total <b class="num">${fmt(S)}</b></span><span style="color:${col};font-weight:600">${hasErr ? "" : ok ? "Red balanceada" : S > D ? `Sobra capacidad: ${fmt(S - D)} und → destino ficticio` : `Falta capacidad: ${fmt(D - S)} und → centro ficticio`}</span><span>Demanda total <b class="num">${fmt(D)}</b></span></div>
+    <div class="balance-track"><i style="width:${(S / mx) * 100}%;background:var(--accent)"></i></div>
+    <div class="balance-track"><i style="width:${(D / mx) * 100}%;background:var(--signal)"></i></div>`;
+}
+
+/* ---------- avisos ---------- */
+function realZ(res) { // costo sin rutas ficticias (ya valen 0)
+  return res.z;
+}
+function renderNotes(res) {
+  const B = res.B, out = [];
+  if (res.infeasible) {
+    out.push(`<div class="note bad"><b>No hay solución factible.</b> Con las rutas bloqueadas (X) no se puede llevar la mercancía a todos los destinos. Desbloquea alguna ruta o cambia las cantidades.</div>`);
+  } else if (!B.dummy) out.push(`<div class="note ok"><b>Solución óptima encontrada.</b> Oferta = demanda (${fmt(B.S)}), no se necesita nodo ficticio.</div>`);
+  if (B.dummy && B.dummy.type === "col") out.push(`<div class="note warn"><b>Problema desbalanceado:</b> la oferta supera la demanda en ${fmt(B.dummy.qty)} und. Se agregó un <b>destino ficticio</b> con costo 0; lo que va allí es capacidad que queda sin usar.</div>`);
+  if (B.dummy && B.dummy.type === "row") out.push(`<div class="note warn"><b>Problema desbalanceado:</b> la demanda supera la oferta en ${fmt(B.dummy.qty)} und. Se agregó un <b>centro ficticio</b> con costo 0; lo que sale de él es demanda que <b>no se puede atender</b>.</div>`);
+  if (res.alternative && !res.infeasible) out.push(`<div class="note info"><b>Hay óptimos alternativos:</b> alguna ruta libre tiene costo reducido 0, así que existe otra distribución con el mismo costo mínimo.</div>`);
+  const last = res.iterations.at(-1);
+  if (!res.infeasible && last.basis.some(([i, j]) => last.x[i][j] < 1e-9)) out.push(`<div class="note info"><b>Solución degenerada:</b> la base tiene celdas con 0 unidades (m + n − 1 = ${res.m + res.n - 1}). Es normal y el MODI lo maneja.</div>`);
+  $("#notes").innerHTML = out.join("");
+}
+
+/* ---------- KPIs ---------- */
+function stats(res) {
+  const B = res.B; const realRows = [], realCols = [];
+  for (let i = 0; i < res.m; i++) if (!(B.dummy && B.dummy.type === "row" && i === B.dummy.index)) realRows.push(i);
+  for (let j = 0; j < res.n; j++) if (!(B.dummy && B.dummy.type === "col" && j === B.dummy.index)) realCols.push(j);
+  let shipped = 0, routes = 0;
+  realRows.forEach((i) => realCols.forEach((j) => { if (res.x[i][j] > 1e-9) { shipped += res.x[i][j]; routes++; } }));
+  const cap = realRows.reduce((a, i) => a + B.s[i], 0);
+  const dem = realCols.reduce((a, j) => a + B.d[j], 0);
+  return { realRows, realCols, shipped, routes, cap, dem };
+}
+function renderKpis(res) {
+  const st = stats(res);
+  const nwBad = res.inits.nw.usesBlocked;
+  const nw = res.inits.nw.z, start = res.inits[method].z;
+  const save = nwBad ? 0 : nw - res.z;
+  const mName = { vogel: "Vogel", min: "costo mínimo", nw: "esquina NO" }[method];
+  $("#tkZ").textContent = res.infeasible ? "—" : "$" + fmt(res.z);
+  $("#tkSub").textContent = res.infeasible ? "sin solución" : "miles de COP";
+  if (res.infeasible) { $("#kpis").innerHTML = ""; return; }
+  $("#kpis").innerHTML = `
+    <div class="kpi lead"><span class="eyebrow">Costo mínimo Z*</span><span class="v">${money(res.z)}</span><small>${res.iterations.length - 1} iteraciones MODI desde ${mName}${res.inits[method].usesBlocked ? "" : ` (${money(start)})`}</small></div>
+    <div class="kpi"><span class="eyebrow">Ahorro vs. sin optimizar</span><span class="v ${save > 0 ? "delta-good" : ""}">${nwBad ? "—" : money(save)}</span><small>${nwBad ? "La esquina NO cae en una ruta bloqueada" : `Esquina NO cuesta ${money(nw)}${nw > 0 ? ` · ${pct((save / nw) * 100)} menos` : ""}`}</small></div>
+    <div class="kpi"><span class="eyebrow">Unidades enviadas</span><span class="v">${fmt(st.shipped)}</span><small>${pct(st.cap ? (st.shipped / st.cap) * 100 : 0)} de la capacidad · ${pct(st.dem ? (st.shipped / st.dem) * 100 : 0)} de la demanda</small></div>
+    <div class="kpi"><span class="eyebrow">Rutas usadas</span><span class="v">${st.routes} <small style="font-size:.9rem">de ${st.realRows.length * st.realCols.length}</small></span><small>Costo promedio ${st.shipped ? money(res.z / st.shipped) : "—"} por unidad</small></div>`;
+}
+
+/* ---------- tabla de asignación ---------- */
+function allocTable(res, x, o = {}) {
+  const B = res.B, m = res.m, n = res.n;
+  const basis = o.basis ? new Set(o.basis.map(([i, j]) => i * n + j)) : null;
+  const signs = {}; (o.cycle || []).forEach((c) => signs[c.cell[0] * n + c.cell[1]] = c.sign);
+  const isDR = (i) => B.dummy && B.dummy.type === "row" && B.dummy.index === i;
+  const isDC = (j) => B.dummy && B.dummy.type === "col" && B.dummy.index === j;
+  const maxq = Math.max(1e-9, ...x.flat());
+  let h = `<table class="alloc"><thead><tr><th></th>${B.cols.map((c, j) => `<th class="${isDC(j) ? "dummy" : ""}">${esc(c)}</th>`).join("")}${o.u ? "<th>u<sub>i</sub></th>" : ""}<th>Oferta</th></tr></thead><tbody>`;
+  for (let i = 0; i < m; i++) {
+    h += `<tr><th scope="row" class="${isDR(i) ? "dummy" : ""}">${esc(B.rows[i])}</th>`;
+    for (let j = 0; j < n; j++) {
+      const q = x[i][j], key = i * n + j, inB = basis ? basis.has(key) : q > 1e-9;
+      const blk = B.blocked[i][j];
+      const cls = [q > 1e-9 ? "" : "zero", isDR(i) || isDC(j) ? "dummy" : "", blk ? "blk" : "", basis && inB ? "basic" : "",
+        o.enter && o.enter[0] === i && o.enter[1] === j ? "enter" : ""].join(" ");
+      const heat = !o.u && q > 1e-9 && !(isDR(i) || isDC(j)) ? `style="background:rgba(var(--heat),${(0.1 + 0.35 * q / maxq).toFixed(2)})"` : "";
+      let body;
+      if (basis && !inB && o.delta) { const d = o.delta[i][j]; body = `<span class="d ${d < -1e-7 ? "neg" : ""}">${blk ? "bloq." : "Δ " + fmt(d)}</span>`; }
+      else body = `<span class="q">${q > 1e-9 || inB ? fmt(q) : "·"}</span>`;
+      h += `<td class="${cls}" ${heat}><span class="c">${blk ? "X" : fmt(B.C[i][j])}</span>${signs[key] ? `<span class="sg">${signs[key]}</span>` : ""}${body}</td>`;
+    }
+    if (o.u) h += `<td class="tot">${fmt(o.u[i])}</td>`;
+    h += `<td class="tot">${fmt(B.s[i])}</td></tr>`;
+  }
+  if (o.v) h += `<tr><th scope="row">v<sub>j</sub></th>${o.v.map((v) => `<td class="tot">${fmt(v)}</td>`).join("")}<td></td><td></td></tr>`;
+  h += `<tr><th scope="row">Demanda</th>${B.d.map((d) => `<td class="tot">${fmt(d)}</td>`).join("")}${o.u ? "<td></td>" : ""}<td class="tot">${fmt(B.d.reduce((a, b) => a + b, 0))}</td></tr></tbody></table>`;
+  return h;
+}
+function renderAlloc(res) { $("#allocWrap").innerHTML = res.infeasible ? `<p class="muted">Sin solución factible.</p>` : allocTable(res, res.x); }
+
+/* ---------- red ---------- */
+function renderNet(res) {
+  if (res.infeasible) { $("#netWrap").innerHTML = ""; return; }
+  const B = res.B, m = res.m, n = res.n;
+  const W = 640, rowH = 74, H = Math.max(m, n) * rowH + 40;
+  const yO = (i) => 20 + (H - 40) * (i + 0.5) / m, yD = (j) => 20 + (H - 40) * (j + 0.5) / n;
+  const x1 = 120, x2 = 520;
+  const maxq = Math.max(1e-9, ...res.x.flat());
+  const isD = (i, j) => (B.dummy && ((B.dummy.type === "row" && B.dummy.index === i) || (B.dummy.type === "col" && B.dummy.index === j)));
+  let lines = "", labels = "";
+  for (let i = 0; i < m; i++) for (let j = 0; j < n; j++) {
+    const q = res.x[i][j]; if (q <= 1e-9) continue;
+    const w = 2 + 12 * q / maxq, d = isD(i, j);
+    const ya = yO(i), yb = yD(j);
+    lines += `<path d="M${x1 + 26},${ya} C${(x1 + x2) / 2},${ya} ${(x1 + x2) / 2},${yb} ${x2 - 26},${yb}" fill="none" stroke="${d ? "var(--muted)" : "var(--accent)"}" stroke-opacity="${d ? 0.5 : 0.75}" stroke-width="${w}" ${d ? 'stroke-dasharray="6 5"' : ""} stroke-linecap="round"/>`;
+    const t = 0.5, mx = (x1 + x2) / 2, my = ya + (yb - ya) * t;
+    labels += `<g><rect x="${mx - 34}" y="${my - 11}" width="68" height="22" rx="11" fill="var(--surface)" stroke="var(--line)"/><text class="lbl" x="${mx}" y="${my + 4}" text-anchor="middle">${fmt(q)} · $${fmt(q * B.C[i][j])}</text></g>`;
+  }
+  let nodes = "";
+  for (let i = 0; i < m; i++) {
+    const d = B.dummy && B.dummy.type === "row" && B.dummy.index === i;
+    nodes += `<circle cx="${x1}" cy="${yO(i)}" r="24" fill="${d ? "var(--sunk)" : "var(--ink)"}" stroke="var(--line)"/><text x="${x1}" y="${yO(i) + 5}" text-anchor="middle" font-weight="700" font-size="14" style="fill:${d ? "var(--muted)" : "var(--bg)"}">${esc(d ? "F" : B.rows[i].slice(0, 3))}</text><text x="${x1 - 34}" y="${yO(i) + 4}" text-anchor="end" font-size="12" style="fill:var(--muted)">${esc(d ? "Ficticio" : "Oferta")} ${fmt(B.s[i])}</text>`;
+  }
+  for (let j = 0; j < n; j++) {
+    const d = B.dummy && B.dummy.type === "col" && B.dummy.index === j;
+    nodes += `<rect x="${x2 - 24}" y="${yD(j) - 24}" width="48" height="48" rx="10" fill="${d ? "var(--sunk)" : "var(--signal)"}" stroke="var(--line)"/><text x="${x2}" y="${yD(j) + 5}" text-anchor="middle" font-weight="700" font-size="13" style="fill:${d ? "var(--muted)" : "var(--surface)"}">${esc(d ? "F" : B.cols[j].slice(0, 3))}</text><text x="${x2 + 34}" y="${yD(j) + 4}" font-size="12" style="fill:var(--muted)">${esc(d ? "Ficticio" : "Pide")} ${fmt(B.d[j])}</text>`;
+  }
+  $("#netWrap").innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Red de rutas con unidades enviadas">${lines}${labels}${nodes}</svg>`;
+}
+
+/* ---------- paso a paso ---------- */
+const nm = (res, i, j) => `${res.B.rows[i]}→${res.B.cols[j]}`;
+function renderSteps(res) {
+  const B = res.B, m = res.m, n = res.n;
+  // planteamiento
+  const vn = (i, j) => `x(${B.rows[i]},${B.cols[j]})`;
+  const terms = [];
+  for (let i = 0; i < m; i++) for (let j = 0; j < n; j++) if (!B.blocked[i][j]) terms.push(`${fmt(B.C[i][j])}·${vn(i, j)}`);
+  const chunk = (arr, k) => arr.reduce((a, t, idx) => (idx % k ? a[a.length - 1].push(t) : a.push([t]), a), []);
+  let f = "Minimizar  Z = " + chunk(terms, 4).map((g) => g.join(" + ")).join("\n             + ") + "\n\nSujeto a:\n";
+  for (let i = 0; i < m; i++) f += `  ${B.cols.map((c, j) => B.blocked[i][j] ? null : vn(i, j)).filter(Boolean).join(" + ")} = ${fmt(B.s[i])}   (oferta ${B.rows[i]})\n`;
+  for (let j = 0; j < n; j++) f += `  ${B.rows.map((r, i) => B.blocked[i][j] ? null : vn(i, j)).filter(Boolean).join(" + ")} = ${fmt(B.d[j])}   (demanda ${B.cols[j]})\n`;
+  f += "  x(i,j) ≥ 0";
+  if (B.dummy) f += `\n\n* Incluye ${B.dummy.type === "col" ? "destino" : "centro"} ficticio (costo 0) para balancear.`;
+  $("#formulation").textContent = f;
+
+  // métodos
+  const names = { nw: "Esquina noroeste", min: "Costo mínimo", vogel: "Vogel (VAM)" };
+  $("#methodsTable").innerHTML = `<thead><tr><th>Método</th><th class="r">Costo inicial</th><th class="r">Brecha vs. óptimo</th><th class="r">Celdas básicas</th></tr></thead><tbody>` +
+    ["nw", "min", "vogel"].map((k) => { const r = res.inits[k]; const gap = r.z - res.z;
+      return `<tr${k === method ? ' style="background:var(--accent-soft)"' : ""}><td>${names[k]}${k === method ? ' <span class="pill">usado</span>' : ""}</td><td class="r num">${r.usesBlocked ? "usa ruta bloqueada" : money(r.z)}</td><td class="r num">${r.usesBlocked ? "—" : `+${fmt(gap)} (${res.z ? pct((gap / res.z) * 100) : "0 %"})`}</td><td class="r num">${r.basis.length}</td></tr>`; }).join("") +
+    `<tr><td><b>Óptimo (MODI)</b></td><td class="r num"><b>${res.infeasible ? "sin solución" : money(res.z)}</b></td><td class="r num">—</td><td class="r num">${m + n - 1}</td></tr></tbody>`;
+
+  // solución inicial
+  const init = res.inits[method];
+  let html = `<div class="step"><div class="head"><span class="pill">Paso 1</span><h3>Balanceo</h3></div>
+    <p>Oferta total = ${fmt(B.S)} · Demanda total = ${fmt(B.D)}. ${B.dummy ? `Como no son iguales se agrega un ${B.dummy.type === "col" ? "destino" : "centro"} ficticio con ${fmt(B.dummy.qty)} und y costo 0.` : "Están balanceadas: se trabaja con la tabla tal cual."}</p></div>`;
+  let logHtml = "";
+  if (method === "vogel") {
+    logHtml = `<ol class="vlog">` + init.log.map((s) => {
+      const rp = s.rowPen.map((p, i) => p === null ? null : `${B.rows[i]} ${fmt(p)}`).filter(Boolean).join(", ");
+      const cp = s.colPen.map((p, j) => p === null ? null : `${B.cols[j]} ${fmt(p)}`).filter(Boolean).join(", ");
+      const line = s.line[0] === "row" ? `fila ${B.rows[s.line[1]]}` : `columna ${B.cols[s.line[1]]}`;
+      return `<li>Penalizaciones — filas: ${rp || "—"}; columnas: ${cp || "—"}. Mayor: <b>${line} (${fmt(s.pen)})</b> → celda de menor costo <b>${nm(res, ...s.cell)}</b> (costo ${fmt(B.C[s.cell[0]][s.cell[1]])}): asignar <b>${fmt(s.q)}</b>.</li>`; }).join("") + `</ol>`;
+  } else {
+    const why = method === "min" ? "la celda disponible de menor costo" : "la esquina superior izquierda disponible";
+    logHtml = `<ol class="vlog">` + init.log.map((s) => `<li>Se toma ${why}: <b>${nm(res, ...s.cell)}</b> (costo ${fmt(B.C[s.cell[0]][s.cell[1]])}) y se asigna <b>${fmt(s.q)}</b>.</li>`).join("") + `</ol>`;
+  }
+  html += `<div class="step"><div class="head"><span class="pill">Paso 2</span><h3>Solución inicial por ${names[method]}</h3><span class="pill sig">Z₀ = ${init.usesBlocked ? "usa ruta bloqueada" : money(init.z)}</span></div>${logHtml}
+    <div class="scroll">${allocTable(res, init.x, { basis: init.basis })}</div>
+    <p class="muted" style="font-size:.84rem">Celdas básicas: ${init.basis.length} (se necesitan m + n − 1 = ${m + n - 1}). Los valores subrayados son básicos.</p></div>`;
+
+  // iteraciones MODI
+  res.iterations.forEach((it, k) => {
+    const last = it.optimal;
+    let body = `<p>Potenciales: se fija u<sub>${esc(B.rows[0])}</sub> = 0 y para cada celda básica c<sub>ij</sub> = u<sub>i</sub> + v<sub>j</sub>. Para cada celda libre: Δ<sub>ij</sub> = c<sub>ij</sub> − u<sub>i</sub> − v<sub>j</sub>.</p>`;
+    body += `<div class="scroll">${allocTable(res, it.x, { basis: it.basis, delta: it.delta, u: it.u, v: it.v, cycle: it.cycle, enter: it.entering })}</div>`;
+    if (last) {
+      body += `<div class="note ok"><b>Todos los Δ ≥ 0: la solución es óptima.</b> Costo mínimo Z* = ${money(it.z)}.${res.alternative ? " Hay al menos un Δ = 0, así que existen óptimos alternativos." : ""}</div>`;
+    } else {
+      const minus = it.cycle.filter((c) => c.sign === "-").map((c) => `${nm(res, ...c.cell)} (${fmt(it.x[c.cell[0]][c.cell[1]])})`).join(", ");
+      body += `<p>Entra <b>${nm(res, ...it.entering)}</b> porque tiene el Δ más negativo (${fmt(it.enteringDelta)}). Ciclo: ${it.cycle.map((c) => `${c.sign}${nm(res, ...c.cell)}`).join(" → ")}.
+        θ = mínimo de las celdas con signo − = min{${minus}} = <b>${fmt(it.theta)}</b>. Sale <b>${nm(res, ...it.leaving)}</b>. El costo baja ${fmt(-it.enteringDelta * it.theta)} → Z = ${money(it.z + it.enteringDelta * it.theta)}.</p>`;
+    }
+    html += `<div class="step ${last ? "final" : ""}"><div class="head"><span class="pill ${last ? "good" : ""}">Paso ${k + 3}</span><h3>MODI · iteración ${k + 1}</h3><span class="pill">Z = ${money(it.z)}</span></div>${body}</div>`;
+  });
+  $("#steps").innerHTML = html;
+}
+
+/* ---------- gerencial ---------- */
+function renderGerencial(res) {
+  const B = res.B, st = stats(res);
+  if (res.infeasible) { $("#routesTable").innerHTML = ""; $("#utilBars").innerHTML = ""; $("#oppTable").innerHTML = ""; $("#recs").innerHTML = `<li>Sin solución factible: revisa las rutas bloqueadas.</li>`; return; }
+  const rows = [];
+  st.realRows.forEach((i) => st.realCols.forEach((j) => { const q = res.x[i][j]; if (q > 1e-9) rows.push({ i, j, q, c: B.C[i][j], t: q * B.C[i][j] }); }));
+  rows.sort((a, b) => b.t - a.t);
+  const maxT = Math.max(1e-9, ...rows.map((r) => r.t));
+  $("#routesTable").innerHTML = `<thead><tr><th>Ruta</th><th class="r">Unidades</th><th class="r">Costo unit.</th><th class="r">Subtotal</th><th class="r">Peso en Z</th></tr></thead><tbody>` +
+    rows.map((r) => `<tr><td><b>${esc(nm(res, r.i, r.j))}</b></td><td class="r num">${fmt(r.q)}</td><td class="r num">$${fmt(r.c)}</td><td class="r num">$${fmt(r.t)}</td><td class="r"><div class="share"><i style="width:${(r.t / maxT) * 70}px"></i><span class="num">${res.z ? pct((r.t / res.z) * 100) : "—"}</span></div></td></tr>`).join("") +
+    `<tr><td><b>Total</b></td><td class="r num"><b>${fmt(st.shipped)}</b></td><td></td><td class="r num"><b>$${fmt(res.z)}</b></td><td class="r num">100 %</td></tr></tbody>`;
+
+  $("#utilBars").innerHTML = st.realRows.map((i) => {
+    const used = st.realCols.reduce((a, j) => a + res.x[i][j], 0), cap = B.s[i], u = cap ? used / cap * 100 : 0;
+    return `<div class="barrow"><span><b>${esc(B.rows[i])}</b></span><div class="track"><i class="${u >= 99.999 ? "full" : ""}" style="width:${u}%"></i></div><span class="num">${fmt(used)}/${fmt(cap)} · ${pct(u, 0)}</span></div>`;
+  }).join("");
+
+  const opp = [];
+  st.realRows.forEach((i) => st.realCols.forEach((j) => { const d = res.delta[i][j]; if (d !== null && res.x[i][j] <= 1e-9 && !B.blocked[i][j]) opp.push({ i, j, d }); }));
+  opp.sort((a, b) => a.d - b.d);
+  $("#oppTable").innerHTML = opp.length ? `<thead><tr><th>Ruta libre</th><th class="r">Costo unit.</th><th class="r">Sobrecosto por unidad</th></tr></thead><tbody>` +
+    opp.map((o) => `<tr><td>${esc(nm(res, o.i, o.j))}</td><td class="r num">$${fmt(B.C[o.i][o.j])}</td><td class="r num ${o.d <= 1e-7 ? "delta-good" : ""}">+$${fmt(o.d)}</td></tr>`).join("") + `</tbody>` : `<tbody><tr><td class="muted">Todas las rutas están en uso.</td></tr></tbody>`;
+
+  // recomendaciones
+  const recs = [];
+  if (rows.length) { const r = rows[0]; recs.push(`<b>${esc(nm(res, r.i, r.j))}</b> es la ruta que más pesa: ${pct((r.t / res.z) * 100)} del costo total. Negociar su tarifa es la palanca de ahorro más directa.`); }
+  const sat = st.realRows.filter((i) => Math.abs(st.realCols.reduce((a, j) => a + res.x[i][j], 0) - B.s[i]) < 1e-9 && B.s[i] > 0);
+  const idle = st.realRows.filter((i) => B.s[i] - st.realCols.reduce((a, j) => a + res.x[i][j], 0) > 1e-9);
+  // valor de ampliar capacidad 10 und en cada centro
+  const gains = st.realRows.map((i) => {
+    const inp = clone(lastInput); inp.supply[i] += 10;
+    const r2 = solveData(inp); return { i, dz: r2 && !r2.infeasible ? r2.z - res.z : null };
+  }).filter((g) => g.dz !== null && g.dz < -1e-9).sort((a, b) => a.dz - b.dz);
+  if (gains.length) recs.push(`Ampliar en 10 und la capacidad de <b>${esc(B.rows[gains[0].i])}</b> bajaría el costo en <b>${money(-gains[0].dz)}</b> (${money(-gains[0].dz / 10)} por unidad). Es el centro donde más rinde invertir.`);
+  else if (sat.length === st.realRows.length) recs.push(`Todos los centros trabajan al 100 %. Cualquier aumento de demanda exige ampliar capacidad o redistribuir inventario.`);
+  if (idle.length) recs.push(`Capacidad ociosa en ${idle.map((i) => `<b>${esc(B.rows[i])}</b> (${fmt(B.s[i] - st.realCols.reduce((a, j) => a + res.x[i][j], 0))} und)`).join(", ")}: se puede reducir inventario allí o captar nuevos clientes.`);
+  if (B.dummy && B.dummy.type === "row") {
+    const lost = st.realCols.filter((j) => res.x[B.dummy.index][j] > 1e-9).map((j) => `${esc(B.cols[j])} (${fmt(res.x[B.dummy.index][j])} und)`);
+    recs.push(`La capacidad no alcanza: quedan sin atender ${lost.join(", ")}. Hay que ampliar capacidad o priorizar clientes.`);
+  }
+  if (opp.length) recs.push(`Si una ruta usada falla, la alternativa más barata es <b>${esc(nm(res, opp[0].i, opp[0].j))}</b>, que sube el costo ${money(opp[0].d)} por unidad desviada.`);
+  const save = res.inits.nw.usesBlocked ? 0 : res.inits.nw.z - res.z;
+  if (save > 1e-9) recs.push(`Frente a una asignación sin optimizar (esquina noroeste, ${money(res.inits.nw.z)}), el modelo ahorra <b>${money(save)}</b> (${pct((save / res.inits.nw.z) * 100)}) con la misma demanda atendida.`);
+  $("#recs").innerHTML = recs.map((r) => `<li>${r}</li>`).join("");
+}
+
+/* ---------- escenarios ---------- */
+function scenarioList() {
+  return [...PRESETS.map((p) => ({ id: p.id, name: p.name, desc: p.desc, input: { costs: p.data.costs, supply: p.data.supply, demand: p.data.demand, rowNames: p.data.rows, colNames: p.data.cols } })),
+    ...saved.map((s, k) => { const pr = parse(s.raw); return { id: "s" + k, name: "★ " + s.name, desc: "Guardado", input: pr.errs.length ? null : pr.input }; }),
+    ...(active === "custom" && lastInput ? [{ id: "cur", name: "Datos actuales", desc: "Sin guardar", input: lastInput }] : [])];
+}
+function routesOf(r) { const o = {}; if (!r || r.infeasible) return o;
+  const B = r.B; for (let i = 0; i < r.m; i++) for (let j = 0; j < r.n; j++) if (r.x[i][j] > 1e-9) o[`${B.rows[i]}→${B.cols[j]}`] = r.x[i][j]; return o; }
+function renderScenarios() {
+  const list = scenarioList().map((s) => ({ ...s, res: s.input ? solveData(s.input) : null }));
+  const base = list[0].res.z;
+  const zs = list.map((s) => s.res && !s.res.infeasible ? s.res.z : null);
+  const mx = Math.max(1, ...zs.filter((z) => z !== null));
+  $("#scnTable").innerHTML = `<thead><tr><th>Escenario</th><th class="r">Costo Z*</th><th class="r">Cambio</th><th class="r">Rutas</th></tr></thead><tbody>` +
+    list.map((s, k) => { const z = zs[k]; const d = z === null ? null : z - base;
+      return `<tr data-load="${s.id}" style="cursor:${s.id === "cur" ? "default" : "pointer"}${s.id === active ? ";background:var(--accent-soft)" : ""}"><td><b>${esc(s.name)}</b><br><span class="muted" style="font-size:.8rem">${esc(s.desc)}</span></td><td class="r num">${z === null ? "sin solución" : money(z)}</td><td class="r num ${d > 1e-9 ? "delta-bad" : d < -1e-9 ? "delta-good" : ""}">${d === null || k === 0 ? "—" : `${d > 0 ? "+" : ""}${fmt(d)} (${pct((d / base) * 100)})`}</td><td class="r num">${Object.keys(routesOf(s.res)).filter((r) => !r.includes("Ficticio")).length}</td></tr>`; }).join("") + `</tbody>`;
+  $("#scnBars").innerHTML = list.map((s, k) => zs[k] === null ? "" : `<div class="barrow"><span>${esc(s.name)}</span><div class="track"><i class="${k === 0 ? "" : zs[k] > base + 1e-9 ? "full" : ""}" style="width:${(zs[k] / mx) * 100}%"></i></div><span class="num">$${fmt(zs[k])}</span></div>`).join("");
+  // comparador
+  const opts = list.map((s, k) => `<option value="${k}">${esc(s.name)}</option>`).join("");
+  const a = $("#cmpA"), b = $("#cmpB"); const va = a.value, vb = b.value;
+  a.innerHTML = opts; b.innerHTML = opts;
+  a.value = va && +va < list.length ? va : "0"; b.value = vb && +vb < list.length ? vb : String(Math.min(1, list.length - 1));
+  window.__scn = list; renderCompare();
+}
+function renderCompare() {
+  const list = window.__scn; if (!list) return;
+  const A = list[+$("#cmpA").value], Bs = list[+$("#cmpB").value];
+  const ra = routesOf(A.res), rb = routesOf(Bs.res);
+  const keys = [...new Set([...Object.keys(ra), ...Object.keys(rb)])].sort();
+  $("#cmpTable").innerHTML = `<thead><tr><th>Ruta</th><th class="r">${esc(A.name)}</th><th class="r">${esc(Bs.name)}</th><th class="r">Cambio</th></tr></thead><tbody>` +
+    keys.map((k) => { const x = ra[k] || 0, y = rb[k] || 0, d = y - x;
+      return `<tr><td>${esc(k)}</td><td class="r num">${fmt(x)}</td><td class="r num">${fmt(y)}</td><td class="r num ${Math.abs(d) > 1e-9 ? "" : "muted"}" style="${Math.abs(d) > 1e-9 ? "color:var(--signal);font-weight:600" : ""}">${Math.abs(d) > 1e-9 ? (d > 0 ? "+" : "") + fmt(d) : "igual"}</td></tr>`; }).join("") + `</tbody>`;
+}
+$("#cmpA").onchange = renderCompare; $("#cmpB").onchange = renderCompare;
+$("#scnTable").addEventListener("click", (e) => { const tr = e.target.closest("tr[data-load]"); if (tr && tr.dataset.load !== "cur") { loadScenario(tr.dataset.load); toast("Escenario cargado en el laboratorio"); } });
+$("#saveScn").onclick = () => {
+  if (!lastRes) { toast("Corrige los datos antes de guardar."); return; }
+  const name = $("#scnName").value.trim() || `Escenario ${saved.length + 1}`;
+  saved.push({ name, raw: clone(state) }); active = "s" + (saved.length - 1);
+  $("#scnName").value = ""; recompute(); toast(`"${name}" guardado`);
+};
+
+/* ---------- sensibilidad ---------- */
+function sensInput() {
+  if (!lastInput) return null;
+  const inp = clone(lastInput), i = +$("#sOrig").value, j = +$("#sDest").value;
+  const fc = 1 + (+$("#sCost").value) / 100, fd = 1 + (+$("#sDem").value) / 100;
+  inp.costs[i] = inp.costs[i].map((c) => c === null ? null : Math.round(c * fc * 100) / 100);
+  inp.demand[j] = Math.round(inp.demand[j] * fd * 100) / 100;
+  return inp;
+}
+function renderSens() {
+  if (!lastInput) return;
+  const so = $("#sOrig"), sd = $("#sDest"), vo = so.value, vd = sd.value;
+  so.innerHTML = lastInput.rowNames.map((r, i) => `<option value="${i}">${esc(r)}</option>`).join("");
+  sd.innerHTML = lastInput.colNames.map((c, j) => `<option value="${j}">${esc(c)}</option>`).join("");
+  if (vo && +vo < lastInput.rowNames.length) so.value = vo; if (vd && +vd < lastInput.colNames.length) sd.value = vd;
+  updateSens();
+}
+function updateSens() {
+  $("#sCostV").textContent = `${+$("#sCost").value > 0 ? "+" : ""}${$("#sCost").value} %`;
+  $("#sDemV").textContent = `${+$("#sDem").value > 0 ? "+" : ""}${$("#sDem").value} %`;
+  const inp = sensInput(); if (!inp || !lastRes) return;
+  const r = solveData(inp);
+  if (!r || r.infeasible || lastRes.infeasible) { $("#sensOut").innerHTML = `<span class="muted">Sin solución factible con estos cambios.</span>`; return; }
+  const d = r.z - lastRes.z;
+  const ra = routesOf(lastRes), rb = routesOf(r);
+  const changed = [...new Set([...Object.keys(ra), ...Object.keys(rb)])].filter((k) => Math.abs((ra[k] || 0) - (rb[k] || 0)) > 1e-9 && !k.includes("Ficticio"));
+  $("#sensOut").innerHTML = `<div><span class="eyebrow">Nuevo Z*</span><br><span class="num">${money(r.z)}</span></div>
+    <div><span class="eyebrow">Cambio</span><br><span class="num ${d > 1e-9 ? "delta-bad" : d < -1e-9 ? "delta-good" : ""}">${d > 0 ? "+" : ""}${fmt(d)}${lastRes.z ? ` (${pct((d / lastRes.z) * 100)})` : ""}</span></div>
+    <div style="flex-basis:100%;font-size:.86rem" class="muted">${r.B.dummy && !lastRes.B.dummy ? "El cambio desbalancea la red: se agrega un nodo ficticio. " : ""}${changed.length ? `Cambian las rutas: ${changed.map(esc).join(", ")}.` : "Las rutas no cambian, solo el costo."}</div>`;
+}
+["sCost", "sDem", "sOrig", "sDest"].forEach((id) => $("#" + id).addEventListener("input", updateSens));
+$("#sensReset").onclick = () => { $("#sCost").value = 0; $("#sDem").value = 0; updateSens(); };
+$("#sensApply").onclick = () => { const inp = sensInput(); if (!inp) return;
+  state.costs = inp.costs.map((r) => r.map((c) => c === null ? "X" : String(c))); state.demand = inp.demand.map(String);
+  $("#sCost").value = 0; $("#sDem").value = 0; active = "custom"; buildMatrix(); recompute(); go("laboratorio"); toast("Cambios aplicados al laboratorio"); };
+
+/* ---------- python ---------- */
+function renderPy(inp) {
+  const q = (s) => JSON.stringify(s);
+  const S = inp.supply.reduce((a, b) => a + b, 0), D = inp.demand.reduce((a, b) => a + b, 0);
+  const costLines = inp.rowNames.map((r, i) => `    ${q(r)}: {${inp.colNames.map((c, j) => `${q(c)}: ${inp.costs[i][j] === null ? "None" : inp.costs[i][j]}`).join(", ")}},`).join("\n");
+  $("#pyCode").textContent =
+`import pulp
+
+origenes = ${q(inp.rowNames)}
+destinos = ${q(inp.colNames)}
+costos = {  # miles de COP por unidad (None = ruta bloqueada)
+${costLines}
+}
+oferta = {${inp.rowNames.map((r, i) => `${q(r)}: ${inp.supply[i]}`).join(", ")}}
+demanda = {${inp.colNames.map((c, j) => `${q(c)}: ${inp.demand[j]}`).join(", ")}}
+
+rutas = [(i, j) for i in origenes for j in destinos if costos[i][j] is not None]
+modelo = pulp.LpProblem("Transporte_Caribe", pulp.LpMinimize)
+x = pulp.LpVariable.dicts("x", rutas, lowBound=0)
+
+modelo += pulp.lpSum(costos[i][j] * x[(i, j)] for (i, j) in rutas)
+for i in origenes:   # oferta${S > D ? " (sobra capacidad: <=)" : ""}
+    modelo += pulp.lpSum(x[(i, j)] for j in destinos if (i, j) in x) ${S >= D ? (S > D ? "<=" : "==") : "=="} oferta[i]
+for j in destinos:   # demanda${D > S ? " (falta capacidad: <=)" : ""}
+    modelo += pulp.lpSum(x[(i, j)] for i in origenes if (i, j) in x) ${D > S ? "<=" : "=="} demanda[j]
+
+modelo.solve(pulp.PULP_CBC_CMD(msg=False))
+print("Estado:", pulp.LpStatus[modelo.status])
+for (i, j) in rutas:
+    if x[(i, j)].value() > 0:
+        print(f"{i} -> {j}: {x[(i, j)].value():g} und")
+print("Costo total Z =", pulp.value(modelo.objective), "mil COP")`;
+}
+
+/* ---------- copiar ---------- */
+async function copy(text, msg) {
+  try { await navigator.clipboard.writeText(text); toast(msg); }
+  catch (e) { const ta = document.createElement("textarea"); ta.value = text; document.body.appendChild(ta); ta.select();
+    try { document.execCommand("copy"); toast(msg); } catch (e2) { toast("No se pudo copiar"); } ta.remove(); }
+}
+$("#copyPy").onclick = () => copy($("#pyCode").textContent, "Código copiado");
+$("#copyCsv").onclick = () => { if (!lastRes || lastRes.infeasible) return; const B = lastRes.B; let csv = "Ruta;Unidades;Costo unitario;Subtotal\n";
+  for (let i = 0; i < lastRes.m; i++) for (let j = 0; j < lastRes.n; j++) if (lastRes.x[i][j] > 1e-9) csv += `${B.rows[i]}->${B.cols[j]};${lastRes.x[i][j]};${B.C[i][j]};${lastRes.x[i][j] * B.C[i][j]}\n`;
+  csv += `Total;;;${lastRes.z}\n`; copy(csv, "Tabla copiada: pégala en Excel"); };
+$("#copyJson").onclick = () => { if (!lastInput) return; copy(JSON.stringify({ datos: lastInput, costoMinimo: lastRes && lastRes.z, metodoInicial: method }, null, 2), "Datos copiados en JSON"); };
+
+let tt; function toast(m) { const t = $("#toast"); t.textContent = m; t.hidden = false; clearTimeout(tt); tt = setTimeout(() => t.hidden = true, 2200); }
+
+/* ---------- pestañas ---------- */
+const VIEWS = ["laboratorio", "paso-a-paso", "gerencial", "escenarios", "aprende"];
+function go(v, push = true) {
+  if (!VIEWS.includes(v)) v = "laboratorio";
+  VIEWS.forEach((k) => { $("#v-" + k).hidden = k !== v; });
+  document.querySelectorAll(".tab").forEach((t) => t.setAttribute("aria-selected", t.dataset.v === v));
+  if (push && location.hash !== "#" + v) history.replaceState(null, "", "#" + v);
+}
+document.querySelector(".tabs").addEventListener("click", (e) => { const t = e.target.closest(".tab"); if (t) { go(t.dataset.v); window.scrollTo({ top: 0 }); } });
+window.addEventListener("hashchange", () => go(location.hash.slice(1), false));
+
+buildMatrix(); recompute(); go(location.hash.slice(1), false);
+})();
+</script>
+
+</body>
+</html>
